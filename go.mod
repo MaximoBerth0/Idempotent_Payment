@@ -1,3 +1,3 @@
 module github.com/MaximoBerth0/Idempotent_Payment
 
-go 1.22.0
+go 1.26.0
