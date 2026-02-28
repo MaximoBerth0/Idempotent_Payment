@@ -1,3 +1,7 @@
+package payment
+
+import "context"
+
 type Service struct {
 	repo PaymentRepository
 }
