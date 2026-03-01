@@ -7,13 +7,7 @@ import (
 	"idempotent-payment/internal/idempotency"
 
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 )
-
-type DBTX interface {
-	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
-	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
-}
 
 type IdempotencyRepository struct {
 	db DBTX
