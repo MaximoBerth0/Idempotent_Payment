@@ -10,10 +10,10 @@ func NewService(repo PaymentRepository) *Service {
 	return &Service{repo: repo}
 }
 
-func (s *Service) ProcessPayment(
+func (s *Service) Create(
 	ctx context.Context,
-	id string,
 	amount int64,
+	id string,
 ) (*Payment, error) {
 
 	payment, err := NewPayment(id, amount)
