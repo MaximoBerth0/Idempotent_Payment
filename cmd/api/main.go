@@ -6,6 +6,8 @@ import (
 	"net/http"
 	"os"
 
+	"github.com/joho/godotenv"
+
 	apphttp "idempotent-payment/internal/http"
 	"idempotent-payment/internal/payment"
 	"idempotent-payment/internal/storage/postgres"
@@ -14,9 +16,19 @@ import (
 func main() {
 	ctx := context.Background()
 
+	// Load .env file (only for local development)
+	if err := godotenv.Load(); err != nil {
+		log.Println(".env file not found, using system environment variables")
+	}
+
 	connString := os.Getenv("DATABASE_URL")
 	if connString == "" {
 		log.Fatal("DATABASE_URL is not set")
+	}
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
 	}
 
 	// Database
@@ -44,8 +56,9 @@ func main() {
 		GetPayment:    paymentHandler.GetByID,
 	})
 
-	log.Println("Server running on :8080")
-	if err := http.ListenAndServe(":8080", router); err != nil {
+	log.Printf("Server running on :%s", port)
+
+	if err := http.ListenAndServe(":"+port, router); err != nil {
 		log.Fatal(err)
 	}
 }
