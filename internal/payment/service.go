@@ -34,3 +34,18 @@ func (s *Service) Create(
 
 	return payment, nil
 }
+
+func (s *Service) GetByID(
+	ctx context.Context,
+	id string,
+) (*Payment, error) {
+	payment, err := s.repo.GetByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return payment, nil
+}
+
+func (s *Service) Health(ctx context.Context) error {
+	return s.repo.Health(ctx)
+}

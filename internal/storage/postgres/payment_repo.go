@@ -99,3 +99,7 @@ func (r *PaymentRepository) Save(
 
 	return nil
 }
+
+func (r *PaymentRepository) Health(ctx context.Context) error {
+	return r.db.Ping(ctx)
+}
