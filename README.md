@@ -17,6 +17,7 @@ The service is implemented in **Go** with **PostgreSQL** and requires clients to
 * Transaction-safe payment processing
 * Concurrency-safe idempotency handling
 * High-performance Go HTTP server
+* Unit and http testing
 
 
 ---

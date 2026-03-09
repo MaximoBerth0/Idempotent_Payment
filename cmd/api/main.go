@@ -2,13 +2,13 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
 
 	"github.com/joho/godotenv"
 
 	apphttp "idempotent-payment/internal/http"
+	"idempotent-payment/internal/logger"
 	"idempotent-payment/internal/payment"
 	"idempotent-payment/internal/storage/postgres"
 )
@@ -16,14 +16,17 @@ import (
 func main() {
 	ctx := context.Background()
 
+	log := logger.New()
+
 	// Load .env file (only for local development)
 	if err := godotenv.Load(); err != nil {
-		log.Println(".env file not found, using system environment variables")
+		log.Warn(".env file not found, using system environment variables")
 	}
 
 	connString := os.Getenv("DATABASE_URL")
 	if connString == "" {
-		log.Fatal("DATABASE_URL is not set")
+		log.Error("DATABASE_URL is not set")
+		os.Exit(1)
 	}
 
 	port := os.Getenv("PORT")
@@ -34,17 +37,18 @@ func main() {
 	// Database
 	pool, err := postgres.NewPool(ctx, connString)
 	if err != nil {
-		log.Fatal(err)
+		log.Error("failed to create database pool", "error", err)
+		os.Exit(1)
 	}
 	defer pool.Close()
 
-	log.Println("database connected successfully")
+	log.Info("database connected successfully")
 
 	// Repository
 	paymentRepo := postgres.NewPaymentRepository(pool)
 
 	// Service
-	paymentService := payment.NewService(paymentRepo)
+	paymentService := payment.NewService(paymentRepo, log)
 
 	// Handler
 	paymentHandler := payment.NewHandler(paymentService)
@@ -56,9 +60,10 @@ func main() {
 		GetPayment:    paymentHandler.GetByID,
 	})
 
-	log.Printf("Server running on :%s", port)
+	log.Info("server starting", "port", port)
 
 	if err := http.ListenAndServe(":"+port, router); err != nil {
-		log.Fatal(err)
+		log.Error("server failed", "error", err)
+		os.Exit(1)
 	}
 }
