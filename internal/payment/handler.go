@@ -3,6 +3,7 @@ package payment
 import (
 	"context"
 	"encoding/json"
+	"log/slog"
 	"net/http"
 )
 
@@ -30,10 +31,11 @@ type PaymentService interface {
 
 type Handler struct {
 	service PaymentService
+	logger  *slog.Logger
 }
 
-func NewHandler(s PaymentService) *Handler {
-	return &Handler{service: s}
+func NewHandler(s PaymentService, logger *slog.Logger) *Handler {
+	return &Handler{service: s, logger: logger}
 }
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
