@@ -3,8 +3,10 @@ package payment
 import (
 	"context"
 	"encoding/json"
+	"idempotent-payment/internal/http/httpx"
 	"log/slog"
 	"net/http"
+	"strings"
 )
 
 type CreatePaymentRequest struct {
@@ -40,22 +42,34 @@ func NewHandler(s PaymentService, logger *slog.Logger) *Handler {
 
 func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	defer r.Body.Close()
 
-	idemKey := r.Header.Get("Idempotency-Key")
+	idemKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
 	if idemKey == "" {
-		http.Error(w, "Idempotency-Key header is required", http.StatusBadRequest)
+		h.logger.Warn("missing idempotency key", "path", r.URL.Path)
+		httpx.WriteError(w, http.StatusBadRequest, "Idempotency-Key header is required")
 		return
 	}
 
 	var req CreatePaymentRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "invalid JSON body", http.StatusBadRequest)
+
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+
+	if err := decoder.Decode(&req); err != nil {
+		h.logger.Warn("invalid JSON body", "error", err)
+		httpx.WriteError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
 
 	payment, err := h.service.Create(ctx, req.Amount, idemKey)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.logger.Error("failed to create payment",
+			"idempotency_key", idemKey,
+			"error", err,
+		)
+
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to create payment")
 		return
 	}
 
@@ -65,9 +79,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		Status: string(payment.Status),
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusCreated)
-	json.NewEncoder(w).Encode(resp)
+	httpx.WriteJSON(w, http.StatusCreated, resp)
 }
 
 func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
@@ -75,13 +87,19 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 
 	id := r.URL.Query().Get("id")
 	if id == "" {
-		http.Error(w, "id is required", http.StatusBadRequest)
+		h.logger.Warn(
+			"missing payment ID",
+			"path", r.URL.Path,
+			"method", r.Method,
+		)
+		httpx.WriteError(w, http.StatusBadRequest, "payment ID is required")
 		return
 	}
 
 	payment, err := h.service.GetByID(ctx, id)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		h.logger.Error("failed to get payment", "error", err)
+		httpx.WriteError(w, http.StatusInternalServerError, "failed to get payment")
 		return
 	}
 
@@ -99,9 +117,12 @@ func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if err := h.service.Health(ctx); err != nil {
-		http.Error(w, "unhealthy", http.StatusInternalServerError)
+		h.logger.Error("health check failed", "error", err)
+		httpx.WriteError(w, http.StatusInternalServerError, "unhealthy")
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	httpx.WriteJSON(w, http.StatusOK, map[string]string{
+		"status": "ok",
+	})
 }
