@@ -10,10 +10,11 @@ type Product struct {
 	Name      string
 	Price     int
 	Active    bool
+	Currency  string
 	CreatedAt time.Time
 }
 
-func NewProduct(id int, name string, price int) (*Product, error) {
+func NewProduct(id int, name string, price int, currency string) (*Product, error) {
 	if price < 0 {
 		return nil, errors.New("price cannot be negative")
 	}
@@ -22,10 +23,15 @@ func NewProduct(id int, name string, price int) (*Product, error) {
 		return nil, errors.New("name cannot be empty")
 	}
 
+	if currency == "" {
+		return nil, errors.New("currency cannot be empty")
+	}
+
 	return &Product{
 		ID:        id,
 		Name:      name,
 		Price:     price,
+		Currency:  currency,
 		Active:    true,
 		CreatedAt: time.Now(),
 	}, nil
