@@ -52,10 +52,7 @@ func (s *Service) Create(
 		return nil, err
 	}
 
-	s.log.Info("payment stored",
-		"id", payment.ID,
-		"status", payment.Status,
-	)
+	s.log.Info("payment stored", "id", payment.ID, "status", payment.Status)
 
 	return payment, nil
 }
