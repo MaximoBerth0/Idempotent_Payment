@@ -1,9 +1,10 @@
-package payment
+package http
 
 import (
 	"context"
 	"encoding/json"
 	"idempotent-payment/internal/http/httpx"
+	"idempotent-payment/internal/payment"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -26,8 +27,8 @@ type GetPaymentResponse struct {
 }
 
 type PaymentService interface {
-	Create(ctx context.Context, productID int64, idemKey string) (*Payment, error)
-	GetByID(ctx context.Context, id string) (*Payment, error)
+	Create(ctx context.Context, productID int64, idemKey string) (*payment.Payment, error)
+	GetByID(ctx context.Context, id string) (*payment.Payment, error)
 	Health(ctx context.Context) error
 }
 

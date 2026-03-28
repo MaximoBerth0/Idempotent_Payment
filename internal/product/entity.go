@@ -14,17 +14,22 @@ type Product struct {
 	CreatedAt time.Time
 }
 
+var validCurrencies = map[string]struct{}{
+	"USD": {},
+	"ARS": {},
+}
+
 func NewProduct(id int, name string, price int, currency string) (*Product, error) {
-	if price < 0 {
-		return nil, errors.New("price cannot be negative")
+	if price <= 0 {
+		return nil, errors.New("price cannot be negative or zero")
 	}
 
 	if name == "" {
 		return nil, errors.New("name cannot be empty")
 	}
 
-	if currency == "" {
-		return nil, errors.New("currency cannot be empty")
+	if _, ok := validCurrencies[currency]; !ok {
+		return nil, errors.New("invalid currency")
 	}
 
 	return &Product{
@@ -37,6 +42,10 @@ func NewProduct(id int, name string, price int, currency string) (*Product, erro
 	}, nil
 }
 
-func (p *Product) Deactivate() {
+func (p *Product) Deactivate() error {
+	if !p.Active {
+		return errors.New("product already inactive")
+	}
 	p.Active = false
+	return nil
 }

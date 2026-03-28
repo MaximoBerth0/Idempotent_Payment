@@ -1,6 +1,9 @@
 package payment
 
-import "errors"
+import (
+	"errors"
+	"time"
+)
 
 type Status string
 
@@ -13,10 +16,13 @@ const (
 type Payment struct {
 	ID        string
 	ProductID int64
+	Amount    int
+	Currency  string
 	Status    Status
+	CreatedAt time.Time
 }
 
-func NewPayment(id string, productID int64) (*Payment, error) {
+func NewPayment(id string, productID int64, amount int, currency string) (*Payment, error) {
 	if id == "" {
 		return nil, errors.New("payment ID cannot be empty")
 	}
@@ -24,7 +30,10 @@ func NewPayment(id string, productID int64) (*Payment, error) {
 	return &Payment{
 		ID:        id,
 		ProductID: productID,
+		Amount:    amount,
+		Currency:  currency,
 		Status:    StatusPending,
+		CreatedAt: time.Now(),
 	}, nil
 }
 
