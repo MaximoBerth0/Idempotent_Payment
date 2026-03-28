@@ -6,7 +6,7 @@ import (
 )
 
 type Product struct {
-	ID        int
+	ID        int64
 	Name      string
 	Price     int
 	Active    bool
@@ -28,7 +28,7 @@ func NewProduct(id int, name string, price int, currency string) (*Product, erro
 	}
 
 	return &Product{
-		ID:        id,
+		ID:        int64(id),
 		Name:      name,
 		Price:     price,
 		Currency:  currency,

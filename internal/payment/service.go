@@ -2,57 +2,49 @@ package payment
 
 import (
 	"context"
+	"idempotent-payment/internal/product"
 	"log/slog"
 )
 
 type Service struct {
-	repo PaymentRepository
-	log  *slog.Logger
+	repo        PaymentRepository
+	log         *slog.Logger
+	productRepo product.ProductRepository
 }
 
-func NewService(repo PaymentRepository, logger *slog.Logger) *Service {
-	return &Service{repo: repo, log: logger}
+func NewService(repo PaymentRepository, logger *slog.Logger, productRepo product.ProductRepository) *Service {
+	return &Service{repo: repo, log: logger, productRepo: productRepo}
 }
 
 func (s *Service) Create(
 	ctx context.Context,
-	amount int64,
 	id string,
+	productID int64,
 ) (*Payment, error) {
 
-	s.log.Info("creating payment",
+	log := s.log.With(
 		"id", id,
-		"amount", amount,
+		"product_id", productID,
 	)
 
-	payment, err := NewPayment(id, amount)
+	log.Info("creating payment")
+
+	product, err := s.productRepo.GetByID(ctx, productID)
 	if err != nil {
+		log.Error("product not found", "error", err)
 		return nil, err
 	}
 
-	// Simulation of payment processing logic
-	if amount > 100000 {
-		payment.MarkFailed()
-
-		s.log.Warn("payment failed by rule",
-			"id", id,
-			"amount", amount,
-		)
-
-	} else {
-		payment.MarkSuccess()
-
-		s.log.Info("payment processed successfully",
-			"id", id,
-			"amount", amount,
-		)
+	payment, err := NewPayment(id, product.ID)
+	if err != nil {
+		log.Error("failed to create payment", "error", err)
+		return nil, err
 	}
 
 	if err := s.repo.Create(ctx, payment); err != nil {
+		log.Error("failed to save payment", "error", err)
 		return nil, err
 	}
-
-	s.log.Info("payment stored", "id", payment.ID, "status", payment.Status)
 
 	return payment, nil
 }

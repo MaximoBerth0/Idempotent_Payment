@@ -11,20 +11,20 @@ const (
 )
 
 type Payment struct {
-	ID     string
-	Amount int64
-	Status Status
+	ID        string
+	ProductID int64
+	Status    Status
 }
 
-func NewPayment(id string, amount int64) (*Payment, error) {
-	if amount <= 0 {
-		return nil, errors.New("invalid amount")
+func NewPayment(id string, productID int64) (*Payment, error) {
+	if id == "" {
+		return nil, errors.New("payment ID cannot be empty")
 	}
 
 	return &Payment{
-		ID:     id,
-		Amount: amount,
-		Status: StatusPending,
+		ID:        id,
+		ProductID: productID,
+		Status:    StatusPending,
 	}, nil
 }
 

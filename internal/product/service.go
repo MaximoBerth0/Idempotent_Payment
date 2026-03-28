@@ -26,11 +26,11 @@ func (s *Service) Create(ctx context.Context, id int, name string, price int, cu
 	return product, nil
 }
 
-func (s *Service) GetByID(ctx context.Context, id int) (*Product, error) {
+func (s *Service) GetByID(ctx context.Context, id int64) (*Product, error) {
 	return s.repo.GetByID(ctx, id)
 }
 
-func (s *Service) Delete(ctx context.Context, id int) error {
+func (s *Service) Delete(ctx context.Context, id int64) error {
 	return s.repo.Delete(ctx, id)
 }
 

@@ -10,23 +10,23 @@ import (
 )
 
 type CreatePaymentRequest struct {
-	Amount int64 `json:"amount"`
+	ProductID int64 `json:"product_id"`
 }
 
 type CreatePaymentResponse struct {
-	ID     string `json:"id"`
-	Amount int64  `json:"amount"`
-	Status string `json:"status"`
+	ID        string `json:"id"`
+	ProductID int64  `json:"product_id"`
+	Status    string `json:"status"`
 }
 
 type GetPaymentResponse struct {
-	ID     string `json:"id"`
-	Amount int64  `json:"amount"`
-	Status string `json:"status"`
+	ID        string `json:"id"`
+	ProductID int64  `json:"product_id"`
+	Status    string `json:"status"`
 }
 
 type PaymentService interface {
-	Create(ctx context.Context, amount int64, idemKey string) (*Payment, error)
+	Create(ctx context.Context, productID int64, idemKey string) (*Payment, error)
 	GetByID(ctx context.Context, id string) (*Payment, error)
 	Health(ctx context.Context) error
 }
@@ -62,21 +62,26 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	payment, err := h.service.Create(ctx, req.Amount, idemKey)
+	if req.ProductID <= 0 {
+		h.logger.Warn("invalid product_id", "product_id", req.ProductID)
+		httpx.WriteError(w, http.StatusBadRequest, "product_id must be greater than 0")
+		return
+	}
+
+	payment, err := h.service.Create(ctx, req.ProductID, idemKey)
 	if err != nil {
 		h.logger.Error("failed to create payment",
 			"idempotency_key", idemKey,
 			"error", err,
 		)
-
 		httpx.WriteError(w, http.StatusInternalServerError, "failed to create payment")
 		return
 	}
 
 	resp := CreatePaymentResponse{
-		ID:     payment.ID,
-		Amount: payment.Amount,
-		Status: string(payment.Status),
+		ID:        payment.ID,
+		ProductID: payment.ProductID,
+		Status:    string(payment.Status),
 	}
 
 	httpx.WriteJSON(w, http.StatusCreated, resp)
@@ -104,13 +109,12 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := GetPaymentResponse{
-		ID:     payment.ID,
-		Amount: payment.Amount,
-		Status: string(payment.Status),
+		ID:        payment.ID,
+		ProductID: payment.ProductID,
+		Status:    string(payment.Status),
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	httpx.WriteJSON(w, http.StatusOK, resp)
 }
 
 func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
