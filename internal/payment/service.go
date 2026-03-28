@@ -29,15 +29,32 @@ func (s *Service) Create(
 
 	log.Info("creating payment")
 
+	if id == "" {
+		return nil, ErrInvalidPaymentID
+	}
+
+	if productID <= 0 {
+		return nil, ErrInvalidProductID
+	}
+
 	product, err := s.productRepo.GetByID(ctx, productID)
 	if err != nil {
-		log.Error("product not found", "error", err)
+		log.Error("failed to fetch product", "error", err)
 		return nil, err
 	}
 
-	payment, err := NewPayment(id, product.ID)
+	if !product.Active {
+		log.Error("product is inactive", "product_id", productID)
+		return nil, ErrInactiveProduct
+	}
+
+	payment, err := NewPayment(
+		id,
+		product.ID,
+		product.Price,
+		product.Currency,
+	)
 	if err != nil {
-		log.Error("failed to create payment", "error", err)
 		return nil, err
 	}
 
@@ -46,6 +63,7 @@ func (s *Service) Create(
 		return nil, err
 	}
 
+	log.Info("payment created successfully")
 	return payment, nil
 }
 

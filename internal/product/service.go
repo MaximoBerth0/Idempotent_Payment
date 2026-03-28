@@ -13,7 +13,7 @@ func NewService(repo ProductRepository) *Service {
 }
 
 func (s *Service) Create(ctx context.Context, id int, name string, price int, currency string) (*Product, error) {
-	product, err := NewProduct(id, name, price, currency)
+	product, err := NewProduct(name, price, currency)
 	if err != nil {
 		return nil, err
 	}

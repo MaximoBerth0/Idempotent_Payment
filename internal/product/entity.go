@@ -19,7 +19,7 @@ var validCurrencies = map[string]struct{}{
 	"ARS": {},
 }
 
-func NewProduct(id int, name string, price int, currency string) (*Product, error) {
+func NewProduct(name string, price int, currency string) (*Product, error) {
 	if price <= 0 {
 		return nil, errors.New("price cannot be negative or zero")
 	}
@@ -33,7 +33,6 @@ func NewProduct(id int, name string, price int, currency string) (*Product, erro
 	}
 
 	return &Product{
-		ID:        int64(id),
 		Name:      name,
 		Price:     price,
 		Currency:  currency,
