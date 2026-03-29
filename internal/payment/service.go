@@ -18,8 +18,8 @@ func NewService(repo PaymentRepository, logger *slog.Logger, productRepo product
 
 func (s *Service) Create(
 	ctx context.Context,
-	id string,
 	productID int64,
+	id string,
 ) (*Payment, error) {
 
 	log := s.log.With(

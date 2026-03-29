@@ -46,12 +46,13 @@ func main() {
 
 	// Repository
 	paymentRepo := postgres.NewPaymentRepository(pool)
+	productRepo := postgres.NewProductRepository(pool)
 
 	// Service
-	paymentService := payment.NewService(paymentRepo, log)
+	paymentService := payment.NewService(paymentRepo, log, productRepo)
 
 	// Handler
-	paymentHandler := payment.NewHandler(paymentService, log)
+	paymentHandler := apphttp.NewHandler(paymentService, log)
 
 	// Router
 	router := apphttp.NewRouter(apphttp.Handlers{

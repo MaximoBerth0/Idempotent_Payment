@@ -33,7 +33,3 @@ func (s *Service) GetByID(ctx context.Context, id int64) (*Product, error) {
 func (s *Service) Delete(ctx context.Context, id int64) error {
 	return s.repo.Delete(ctx, id)
 }
-
-func (s *Service) List(ctx context.Context) ([]*Product, error) {
-	return s.repo.List(ctx)
-}

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	products "idempotent-payment/internal/product"
+	"idempotent-payment/internal/product"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -18,7 +18,7 @@ func NewProductRepository(db DBTX) *ProductRepository {
 	return &ProductRepository{db: db}
 }
 
-func (r *ProductRepository) Create(ctx context.Context, product *products.Product) error {
+func (r *ProductRepository) Create(ctx context.Context, product *product.Product) error {
 	query := `
 		INSERT INTO products (name, price, active, currency, created_at)
 		VALUES ($1, $2, $3, $4, $5)
@@ -35,7 +35,7 @@ func (r *ProductRepository) Create(ctx context.Context, product *products.Produc
 	return err
 }
 
-func (r *ProductRepository) GetByID(ctx context.Context, id int) (*products.Product, error) {
+func (r *ProductRepository) GetByID(ctx context.Context, id int64) (*product.Product, error) {
 	query := `
 		SELECT id, name, price, active, currency, created_at
 		FROM products
@@ -56,12 +56,12 @@ func (r *ProductRepository) GetByID(ctx context.Context, id int) (*products.Prod
 	err := row.Scan(&pID, &name, &price, &active, &currency, &createdAt)
 	if err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
-			return nil, nil // ErrProductNotFound
+			return nil, ErrProductNotFound
 		}
 		return nil, fmt.Errorf("get product by id %d: %w", id, err)
 	}
 
-	product, err := products.NewProduct(pID, name, price, currency)
+	product, err := product.NewProduct(name, price, currency)
 	if err != nil {
 		return nil, fmt.Errorf("invalid product data from db (id %d): %w", id, err)
 	}
@@ -70,4 +70,22 @@ func (r *ProductRepository) GetByID(ctx context.Context, id int) (*products.Prod
 	product.CreatedAt = createdAt
 
 	return product, nil
+}
+
+func (r *ProductRepository) Delete(ctx context.Context, id int64) error {
+	query := `
+		DELETE FROM products
+		WHERE id = $1
+	`
+
+	cmdTag, err := r.db.Exec(ctx, query, id)
+	if err != nil {
+		return fmt.Errorf("delete product %d: %w", id, err)
+	}
+
+	if cmdTag.RowsAffected() == 0 {
+		return ErrProductNotFound
+	}
+
+	return nil
 }

@@ -10,6 +10,7 @@ func NewService(repo IdempotencyRepository) *Service {
 	return &Service{repo: repo}
 }
 
+// this is a higher-order function, Execute() manages idempotency logic and executes the provided handler function.
 func (s *Service) Execute(
 	ctx context.Context,
 	key string,
