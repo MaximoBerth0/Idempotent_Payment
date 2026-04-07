@@ -16,44 +16,21 @@ func NewService(repo PaymentRepository, logger *slog.Logger, productRepo product
 	return &Service{repo: repo, log: logger, productRepo: productRepo}
 }
 
-func (s *Service) Create(
-	ctx context.Context,
-	productID int64,
-	id string,
-) (*Payment, error) {
-
-	log := s.log.With(
-		"id", id,
-		"product_id", productID,
-	)
-
+func (s *Service) Create(ctx context.Context, productID int64, id string) (*Payment, error) {
+	log := s.log.With("id", id, "product_id", productID)
 	log.Info("creating payment")
-
-	if id == "" {
-		return nil, ErrInvalidPaymentID
-	}
-
-	if productID <= 0 {
-		return nil, ErrInvalidProductID
-	}
 
 	product, err := s.productRepo.GetByID(ctx, productID)
 	if err != nil {
 		log.Error("failed to fetch product", "error", err)
 		return nil, err
 	}
-
 	if !product.Active {
 		log.Error("product is inactive", "product_id", productID)
 		return nil, ErrInactiveProduct
 	}
 
-	payment, err := NewPayment(
-		id,
-		product.ID,
-		product.Price,
-		product.Currency,
-	)
+	payment, err := NewPayment(id, product.ID, product.Price, product.Currency)
 	if err != nil {
 		return nil, err
 	}

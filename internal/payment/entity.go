@@ -1,7 +1,6 @@
 package payment
 
 import (
-	"errors"
 	"time"
 )
 
@@ -24,9 +23,11 @@ type Payment struct {
 
 func NewPayment(id string, productID int64, amount int, currency string) (*Payment, error) {
 	if id == "" {
-		return nil, errors.New("payment ID cannot be empty")
+		return nil, ErrInvalidPaymentID
 	}
-
+	if productID <= 0 {
+		return nil, ErrInvalidProductID
+	}
 	return &Payment{
 		ID:        id,
 		ProductID: productID,

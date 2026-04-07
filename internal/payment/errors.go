@@ -2,10 +2,9 @@ package payment
 
 import "errors"
 
-var ErrNotFound = errors.New("payment not found")
-
-var ErrInvalidPaymentID = errors.New("invalid payment ID")
-
-var ErrInvalidProductID = errors.New("invalid product ID")
-
-var ErrInactiveProduct = errors.New("product is inactive")
+var (
+	ErrInvalidPaymentID = errors.New("payment ID cannot be empty")
+	ErrNotFound         = errors.New("payment not found")
+	ErrInvalidProductID = errors.New("product ID must be greater than zero")
+	ErrInactiveProduct  = errors.New("product is inactive")
+)
