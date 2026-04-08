@@ -32,16 +32,16 @@ type PaymentService interface {
 	Health(ctx context.Context) error
 }
 
-type Handler struct {
+type PaymentHandler struct {
 	service PaymentService
 	logger  *slog.Logger
 }
 
-func NewHandler(s PaymentService, logger *slog.Logger) *Handler {
-	return &Handler{service: s, logger: logger}
+func NewPaymentHandler(s PaymentService, logger *slog.Logger) *PaymentHandler {
+	return &PaymentHandler{service: s, logger: logger}
 }
 
-func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
+func (h *PaymentHandler) Create(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	defer r.Body.Close()
 
@@ -88,7 +88,7 @@ func (h *Handler) Create(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusCreated, resp)
 }
 
-func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
+func (h *PaymentHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	id := r.URL.Query().Get("id")
@@ -118,7 +118,7 @@ func (h *Handler) GetByID(w http.ResponseWriter, r *http.Request) {
 	httpx.WriteJSON(w, http.StatusOK, resp)
 }
 
-func (h *Handler) Health(w http.ResponseWriter, r *http.Request) {
+func (h *PaymentHandler) Health(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	if err := h.service.Health(ctx); err != nil {
