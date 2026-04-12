@@ -52,7 +52,7 @@ func main() {
 	paymentService := payment.NewService(paymentRepo, log, productRepo)
 
 	// Handler
-	paymentHandler := apphttp.NewHandler(paymentService, log)
+	paymentHandler := apphttp.NewPaymentHandler(paymentService, log)
 
 	// Router
 	router := apphttp.NewRouter(apphttp.Handlers{

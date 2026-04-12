@@ -3,6 +3,7 @@ package http
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"idempotent-payment/internal/http/httpx"
 	"idempotent-payment/internal/product"
 	"log/slog"
@@ -124,4 +125,28 @@ func (h *ProductHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpx.WriteJSON(w, http.StatusOK, resp)
+}
+
+func (h *ProductHandler) Delete(w http.ResponseWriter, r *http.Request) {
+	idStr := r.PathValue("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		h.logger.Error("invalid product id", "product_id", idStr, "error", err)
+		http.Error(w, "invalid product id", http.StatusBadRequest)
+		return
+	}
+
+	if err := h.service.Delete(r.Context(), id); err != nil {
+		if errors.Is(err, product.ErrNotFound) {
+			h.logger.Error("product not found", "product_id", id)
+			http.Error(w, "product not found", http.StatusNotFound)
+			return
+		}
+		h.logger.Error("failed to delete product", "product_id", id, "error", err)
+		http.Error(w, "failed to delete product", http.StatusInternalServerError)
+		return
+	}
+
+	h.logger.Info("product deleted successfully", "product_id", id)
+	w.WriteHeader(http.StatusNoContent)
 }

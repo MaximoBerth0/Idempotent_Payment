@@ -24,14 +24,16 @@ func (r *PaymentRepository) Create(
 ) error {
 
 	query := `
-		INSERT INTO payments (id, amount, status)
-		VALUES ($1, $2, $3)
-	`
-
+    INSERT INTO payments (id, product_id, amount, currency, status, created_at)
+    VALUES ($1, $2, $3, $4, $5, $6)
+`
 	_, err := r.db.Exec(ctx, query,
 		p.ID,
+		p.ProductID,
 		p.Amount,
+		p.Currency,
 		p.Status,
+		p.CreatedAt,
 	)
 
 	if err != nil {
@@ -47,7 +49,7 @@ func (r *PaymentRepository) GetByID(
 ) (*payment.Payment, error) {
 
 	query := `
-		SELECT id, amount, status
+		SELECT id, product_id, amount, currency, status, created_at
 		FROM payments
 		WHERE id = $1
 	`
@@ -58,8 +60,11 @@ func (r *PaymentRepository) GetByID(
 
 	err := row.Scan(
 		&p.ID,
+		&p.ProductID,
 		&p.Amount,
+		&p.Currency,
 		&p.Status,
+		&p.CreatedAt,
 	)
 
 	if err != nil {
