@@ -6,18 +6,17 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-type Handlers struct {
-	Health        http.HandlerFunc
-	CreatePayment http.HandlerFunc
-	GetPayment    http.HandlerFunc
-}
-
-func NewRouter(h Handlers) http.Handler {
+func NewRouter(payment *PaymentHandler, product *ProductHandler) http.Handler {
 	r := chi.NewRouter()
 
-	r.Get("/health", h.Health)
-	r.Post("/payments", h.CreatePayment)
-	r.Get("/payments/{id}", h.GetPayment)
+	r.Get("/health", payment.Health)
+
+	r.Post("/payments", payment.Create)
+	r.Get("/payments/{id}", payment.GetByID)
+
+	r.Post("/products", product.Create)
+	r.Get("/products/{id}", product.GetByID)
+	r.Delete("/products/{id}", product.Delete)
 
 	return r
 }

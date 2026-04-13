@@ -10,6 +10,8 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type ProductService interface {
@@ -92,7 +94,7 @@ func (h *ProductHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *ProductHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	rawID := r.URL.Query().Get("id")
+	rawID := chi.URLParam(r, "id")
 	if rawID == "" {
 		h.logger.Warn(
 			"missing product ID",

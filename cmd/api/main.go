@@ -10,6 +10,7 @@ import (
 	apphttp "idempotent-payment/internal/http"
 	"idempotent-payment/internal/logger"
 	"idempotent-payment/internal/payment"
+	"idempotent-payment/internal/product"
 	"idempotent-payment/internal/storage/postgres"
 )
 
@@ -50,16 +51,14 @@ func main() {
 
 	// Service
 	paymentService := payment.NewService(paymentRepo, log, productRepo)
+	productService := product.NewService(productRepo, log)
 
 	// Handler
 	paymentHandler := apphttp.NewPaymentHandler(paymentService, log)
+	productHandler := apphttp.NewProductHandler(productService, log)
 
 	// Router
-	router := apphttp.NewRouter(apphttp.Handlers{
-		Health:        paymentHandler.Health,
-		CreatePayment: paymentHandler.Create,
-		GetPayment:    paymentHandler.GetByID,
-	})
+	router := apphttp.NewRouter(paymentHandler, productHandler)
 
 	log.Info("server starting", "port", port)
 

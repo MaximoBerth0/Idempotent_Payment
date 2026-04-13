@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type CreatePaymentRequest struct {
@@ -91,7 +93,7 @@ func (h *PaymentHandler) Create(w http.ResponseWriter, r *http.Request) {
 func (h *PaymentHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	id := r.URL.Query().Get("id")
+	id := chi.URLParam(r, "id")
 	if id == "" {
 		h.logger.Warn(
 			"missing payment ID",
