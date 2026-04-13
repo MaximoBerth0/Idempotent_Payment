@@ -2,6 +2,8 @@ package http
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"idempotent-payment/internal/http/httpx"
 	"idempotent-payment/internal/payment"
@@ -34,13 +36,22 @@ type PaymentService interface {
 	Health(ctx context.Context) error
 }
 
-type PaymentHandler struct {
-	service PaymentService
-	logger  *slog.Logger
+type IdempotencyService interface {
+	Execute(ctx context.Context,
+		key string,
+		requestHash string,
+		handler func(ctx context.Context) ([]byte, int, error),
+	) ([]byte, int, error)
 }
 
-func NewPaymentHandler(s PaymentService, logger *slog.Logger) *PaymentHandler {
-	return &PaymentHandler{service: s, logger: logger}
+type PaymentHandler struct {
+	service     PaymentService
+	idempotency IdempotencyService
+	logger      *slog.Logger
+}
+
+func NewPaymentHandler(s PaymentService, i IdempotencyService, logger *slog.Logger) *PaymentHandler {
+	return &PaymentHandler{service: s, idempotency: i, logger: logger}
 }
 
 func (h *PaymentHandler) Create(w http.ResponseWriter, r *http.Request) {
@@ -49,45 +60,47 @@ func (h *PaymentHandler) Create(w http.ResponseWriter, r *http.Request) {
 
 	idemKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
 	if idemKey == "" {
-		h.logger.Warn("missing idempotency key", "path", r.URL.Path)
 		httpx.WriteError(w, http.StatusBadRequest, "Idempotency-Key header is required")
 		return
 	}
 
 	var req CreatePaymentRequest
-
-	decoder := json.NewDecoder(r.Body)
-	decoder.DisallowUnknownFields()
-
-	if err := decoder.Decode(&req); err != nil {
-		h.logger.Warn("invalid JSON body", "error", err)
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		httpx.WriteError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
 
-	if req.ProductID <= 0 {
-		h.logger.Warn("invalid product_id", "product_id", req.ProductID)
-		httpx.WriteError(w, http.StatusBadRequest, "product_id must be greater than 0")
-		return
-	}
+	requestHash := computeHash(req)
 
-	payment, err := h.service.Create(ctx, req.ProductID, idemKey)
+	responseBody, httpStatus, err := h.idempotency.Execute(ctx, idemKey, requestHash,
+		func(ctx context.Context) ([]byte, int, error) {
+			payment, err := h.service.Create(ctx, req.ProductID, idemKey)
+			if err != nil {
+				return nil, http.StatusInternalServerError, err
+			}
+			resp, _ := json.Marshal(CreatePaymentResponse{
+				ID:        payment.ID,
+				ProductID: payment.ProductID,
+				Status:    string(payment.Status),
+			})
+			return resp, http.StatusCreated, nil
+		},
+	)
+
 	if err != nil {
-		h.logger.Error("failed to create payment",
-			"idempotency_key", idemKey,
-			"error", err,
-		)
-		httpx.WriteError(w, http.StatusInternalServerError, "failed to create payment")
+		httpx.WriteError(w, httpStatus, err.Error())
 		return
 	}
 
-	resp := CreatePaymentResponse{
-		ID:        payment.ID,
-		ProductID: payment.ProductID,
-		Status:    string(payment.Status),
-	}
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(httpStatus)
+	w.Write(responseBody)
+}
 
-	httpx.WriteJSON(w, http.StatusCreated, resp)
+func computeHash(v any) string {
+	b, _ := json.Marshal(v)
+	sum := sha256.Sum256(b)
+	return hex.EncodeToString(sum[:])
 }
 
 func (h *PaymentHandler) GetByID(w http.ResponseWriter, r *http.Request) {

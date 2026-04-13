@@ -8,6 +8,7 @@ import (
 	"github.com/joho/godotenv"
 
 	apphttp "idempotent-payment/internal/http"
+	"idempotent-payment/internal/idempotency"
 	"idempotent-payment/internal/logger"
 	"idempotent-payment/internal/payment"
 	"idempotent-payment/internal/product"
@@ -48,13 +49,15 @@ func main() {
 	// Repository
 	paymentRepo := postgres.NewPaymentRepository(pool)
 	productRepo := postgres.NewProductRepository(pool)
+	idempotencyRepo := postgres.NewIdempotencyRepository(pool)
 
 	// Service
 	paymentService := payment.NewService(paymentRepo, log, productRepo)
 	productService := product.NewService(productRepo, log)
+	idempotencyService := idempotency.NewService(idempotencyRepo, log)
 
 	// Handler
-	paymentHandler := apphttp.NewPaymentHandler(paymentService, log)
+	paymentHandler := apphttp.NewPaymentHandler(paymentService, idempotencyService, log)
 	productHandler := apphttp.NewProductHandler(productService, log)
 
 	// Router

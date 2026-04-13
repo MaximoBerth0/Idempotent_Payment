@@ -2,11 +2,14 @@ package idempotency
 
 import (
 	"context"
+	"io"
+	"log/slog"
 	"testing"
 )
 
 type MockRepo struct {
 	record  *IdempotencyRecord
+	logger  *slog.Logger
 	created bool
 	err     error
 }
@@ -37,7 +40,7 @@ func TestExecute_NewRequest(t *testing.T) {
 		created: true,
 	}
 
-	service := NewService(mockRepo)
+	service := NewService(mockRepo, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	handler := func(ctx context.Context) ([]byte, int, error) {
 		return []byte("payment ok"), 200, nil
@@ -86,7 +89,7 @@ func TestExecute_DuplicateRequestReturnsStoredResponse(t *testing.T) {
 		created: false,
 	}
 
-	service := NewService(mockRepo)
+	service := NewService(mockRepo, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	handler := func(ctx context.Context) ([]byte, int, error) {
 		t.Fatal("handler should not run")
