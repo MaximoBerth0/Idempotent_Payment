@@ -63,7 +63,7 @@ func main() {
 
 	// Repository
 	paymentRepo := postgres.NewPaymentRepository(pool)
-	productRepo := postgres.NewProductRepository(pool)
+	productRepo := postgres.NewProductRepository(pool, log)
 	idempotencyRepo := postgres.NewIdempotencyRepository(pool)
 
 	// Service
