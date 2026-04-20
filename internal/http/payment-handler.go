@@ -12,7 +12,13 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
+	"go.opentelemetry.io/otel/trace"
 )
+
+const paymentTracer = "idempotent-payment/http"
 
 type CreatePaymentRequest struct {
 	ProductID int64 `json:"product_id"`
@@ -48,27 +54,42 @@ type PaymentHandler struct {
 	service     PaymentService
 	idempotency IdempotencyService
 	logger      *slog.Logger
+	tracer      trace.Tracer
 }
 
 func NewPaymentHandler(s PaymentService, i IdempotencyService, logger *slog.Logger) *PaymentHandler {
-	return &PaymentHandler{service: s, idempotency: i, logger: logger}
+	return &PaymentHandler{
+		service:     s,
+		idempotency: i,
+		logger:      logger,
+		tracer:      otel.Tracer(paymentTracer),
+	}
 }
 
 func (h *PaymentHandler) Create(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, span := h.tracer.Start(r.Context(), "PaymentHandler.Create")
+	defer span.End()
+
 	defer r.Body.Close()
 
 	idemKey := strings.TrimSpace(r.Header.Get("Idempotency-Key"))
 	if idemKey == "" {
+		span.SetStatus(codes.Error, "missing idempotency key")
 		httpx.WriteError(w, http.StatusBadRequest, "Idempotency-Key header is required")
 		return
 	}
 
+	span.SetAttributes(attribute.String("payment.idempotency_key", idemKey))
+
 	var req CreatePaymentRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "invalid request body")
 		httpx.WriteError(w, http.StatusBadRequest, "invalid JSON body")
 		return
 	}
+
+	span.SetAttributes(attribute.Int64("payment.product_id", req.ProductID))
 
 	requestHash := computeHash(req)
 
@@ -78,6 +99,9 @@ func (h *PaymentHandler) Create(w http.ResponseWriter, r *http.Request) {
 			if err != nil {
 				return nil, http.StatusInternalServerError, err
 			}
+
+			span.SetAttributes(attribute.String("payment.id", payment.ID))
+
 			resp, _ := json.Marshal(CreatePaymentResponse{
 				ID:        payment.ID,
 				ProductID: payment.ProductID,
@@ -88,9 +112,14 @@ func (h *PaymentHandler) Create(w http.ResponseWriter, r *http.Request) {
 	)
 
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		httpx.WriteError(w, httpStatus, err.Error())
 		return
 	}
+
+	span.SetAttributes(attribute.Int("http.status_code", httpStatus))
+	span.SetStatus(codes.Ok, "")
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(httpStatus)
@@ -104,45 +133,54 @@ func computeHash(v any) string {
 }
 
 func (h *PaymentHandler) GetByID(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, span := h.tracer.Start(r.Context(), "PaymentHandler.GetByID")
+	defer span.End()
 
 	id := chi.URLParam(r, "id")
 	if id == "" {
-		h.logger.Warn(
-			"missing payment ID",
-			"path", r.URL.Path,
-			"method", r.Method,
-		)
+		span.SetStatus(codes.Error, "missing payment ID")
+		h.logger.Warn("missing payment ID", "path", r.URL.Path, "method", r.Method)
 		httpx.WriteError(w, http.StatusBadRequest, "payment ID is required")
 		return
 	}
 
+	span.SetAttributes(attribute.String("payment.id", id))
+
 	payment, err := h.service.GetByID(ctx, id)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "failed to get payment")
 		h.logger.Error("failed to get payment", "error", err)
 		httpx.WriteError(w, http.StatusInternalServerError, "failed to get payment")
 		return
 	}
+
+	span.SetAttributes(
+		attribute.Int64("payment.product_id", payment.ProductID),
+		attribute.String("payment.status", string(payment.Status)),
+	)
+	span.SetStatus(codes.Ok, "")
 
 	resp := GetPaymentResponse{
 		ID:        payment.ID,
 		ProductID: payment.ProductID,
 		Status:    string(payment.Status),
 	}
-
 	httpx.WriteJSON(w, http.StatusOK, resp)
 }
 
 func (h *PaymentHandler) Health(w http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, span := h.tracer.Start(r.Context(), "PaymentHandler.Health")
+	defer span.End()
 
 	if err := h.service.Health(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, "health check failed")
 		h.logger.Error("health check failed", "error", err)
 		httpx.WriteError(w, http.StatusInternalServerError, "unhealthy")
 		return
 	}
 
-	httpx.WriteJSON(w, http.StatusOK, map[string]string{
-		"status": "ok",
-	})
+	span.SetStatus(codes.Ok, "")
+	httpx.WriteJSON(w, http.StatusOK, map[string]string{"status": "ok"})
 }
