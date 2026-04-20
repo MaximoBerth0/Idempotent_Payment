@@ -4,29 +4,43 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 
 	"idempotent-payment/internal/payment"
 
 	"github.com/jackc/pgx/v5"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/codes"
 )
 
 type PaymentRepository struct {
-	db DBTX
+	db  DBTX
+	log *slog.Logger
 }
 
-func NewPaymentRepository(db DBTX) *PaymentRepository {
-	return &PaymentRepository{db: db}
+var paymentTracer = otel.Tracer("idempotent-payment/internal/storage/postgres/payment_repo")
+
+func NewPaymentRepository(db DBTX, logger *slog.Logger) *PaymentRepository {
+	return &PaymentRepository{db: db, log: logger}
 }
 
 func (r *PaymentRepository) Create(
 	ctx context.Context,
 	p *payment.Payment,
 ) error {
+	ctx, span := paymentTracer.Start(ctx, "PaymentRepository.Create")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("db.operation", "INSERT"),
+		attribute.String("db.table", "payments"),
+	)
 
 	query := `
-    INSERT INTO payments (id, product_id, amount, currency, status, created_at)
-    VALUES ($1, $2, $3, $4, $5, $6)
-`
+        INSERT INTO payments (id, product_id, amount, currency, status, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6)
+    `
+
 	_, err := r.db.Exec(ctx, query,
 		p.ID,
 		p.ProductID,
@@ -35,9 +49,11 @@ func (r *PaymentRepository) Create(
 		p.Status,
 		p.CreatedAt,
 	)
-
 	if err != nil {
-		return fmt.Errorf("create payment: %w", err)
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		r.log.ErrorContext(ctx, "failed to insert payment", "error", err, "payment_id", p.ID)
+		return err
 	}
 
 	return nil
@@ -47,6 +63,15 @@ func (r *PaymentRepository) GetByID(
 	ctx context.Context,
 	id string,
 ) (*payment.Payment, error) {
+
+	ctx, span := paymentTracer.Start(ctx, "PaymentRepository.GetByID")
+	defer span.End()
+
+	span.SetAttributes(
+		attribute.String("db.operation", "SELECT"),
+		attribute.String("db.table", "payments"),
+		attribute.String("payment.id", id),
+	)
 
 	query := `
 		SELECT id, product_id, amount, currency, status, created_at
@@ -71,6 +96,9 @@ func (r *PaymentRepository) GetByID(
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, payment.ErrNotFound
 		}
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		r.log.ErrorContext(ctx, "failed to scan payment", "error", err, "payment_id", id)
 		return nil, fmt.Errorf("get payment by id: %w", err)
 	}
 
@@ -81,6 +109,13 @@ func (r *PaymentRepository) Save(
 	ctx context.Context,
 	p *payment.Payment,
 ) error {
+	ctx, span := paymentTracer.Start(ctx, "PaymentRepository.Save")
+	defer span.End()
+	span.SetAttributes(
+		attribute.String("db.operation", "UPDATE"),
+		attribute.String("db.table", "payments"),
+		attribute.String("payment.id", p.ID),
+	)
 
 	query := `
 		UPDATE payments
@@ -93,8 +128,10 @@ func (r *PaymentRepository) Save(
 		p.Amount,
 		p.Status,
 	)
-
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		r.log.ErrorContext(ctx, "failed to update payment", "error", err, "payment_id", p.ID)
 		return fmt.Errorf("save payment: %w", err)
 	}
 

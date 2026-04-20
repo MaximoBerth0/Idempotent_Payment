@@ -7,3 +7,5 @@ var (
 )
 
 var ErrRequestInProgress = errors.New("a request with this idempotency key is already in progress")
+
+var ErrNotFound = errors.New("idempotency not found")
