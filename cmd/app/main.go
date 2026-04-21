@@ -62,14 +62,14 @@ func main() {
 	log.Info("database connected successfully")
 
 	// Repository
-	paymentRepo := postgres.NewPaymentRepository(pool, log)
+	paymentRepo := postgres.NewPaymentRepository(pool, log, pool)
 	productRepo := postgres.NewProductRepository(pool, log)
 	idempotencyRepo := postgres.NewIdempotencyRepository(pool, log)
 
 	// Service
 	paymentService := payment.NewService(paymentRepo, log, productRepo)
 	productService := product.NewService(productRepo, log)
-	idempotencyService := idempotency.NewService(idempotencyRepo, log)
+	idempotencyService := idempotency.NewService(idempotencyRepo, log, pool)
 
 	// Handler
 	paymentHandler := apphttp.NewPaymentHandler(paymentService, idempotencyService, log)

@@ -11,7 +11,6 @@ In production environments, clients often retry payment requests due to timeouts
 - [Technical Highlights](#technical-highlights)
 - [Architecture](#architecture)
   - [Module Overview](#module-overview)
-  - [Service Functions](#service-functions)
 - [Idempotency Design](#idempotency-design)
   - [Transaction Flow](#transaction-flow)
   - [Design Principles](#design-principles)
@@ -50,6 +49,7 @@ idempotent-payment/
 ├── storage/         # PostgreSQL driver and connection management
 ├── http/            # HTTP server, routing, middleware, and handlers
 └── logger/          # Structured logging
+└── telemetry/       # Tracing
 ```
 
 **`idempotency`** — The heart of the service. Manages idempotency key lifecycle (`in_progress` → `completed` | `failed`), validates request hashes to detect mismatched retries, and exposes a higher-order `Execute` function that wraps any business operation with idempotency guarantees.
@@ -64,13 +64,7 @@ idempotent-payment/
 
 **`logger`** — Structured, leveled logging used across all modules for observability.
 
-### Service Functions
-
-| Module | Functions |
-|---|---|
-| `payment` | `Create`, `GetByID`, `Health` |
-| `idempotency` | `Execute` (higher-order function) |
-| `product` | `Create`, `GetByID`, `Delete` |
+**`telemetry`** OpenTelemetry tracing with OTLP export, spans cover HTTP, service, and repository layers
 
 ---
 
@@ -121,40 +115,6 @@ All write endpoints require an `Idempotency-Key` header.
 | `GET` | `/products/:id` | Get product by ID | — |
 | `DELETE` | `/products/:id` | Delete a product | — |
 | `GET` | `/health` | Health check | — |
- 
----
- 
-### Create Payment
- 
-```
-POST /payments
-```
- 
-**Headers**
- 
-| Header | Required | Description |
-|---|---|---|
-| `Content-Type` | Yes | `application/json` |
-| `Idempotency-Key` | Yes | Client-generated unique key (UUID recommended) |
- 
-**Request Body**
- 
-```json
-{
-  "product_id": "uuid",
-  "amount":     100,
-  "currency":   "USD"
-}
-```
- 
-**Responses**
- 
-| Status | Description |
-|---|---|
-| `201 Created` | Payment successfully created |
-| `200 OK` | Duplicate request — returns original stored response |
-| `409 Conflict` | Key exists with a different request hash, or payment is still `in_progress` |
-| `422 Unprocessable Entity` | Validation error |
  
 ---
  
@@ -255,7 +215,7 @@ go run ./cmd/server
 | `DATABASE_URL` | PostgreSQL connection string | `postgres://user:pass@localhost:5432/payments` |
 | `SERVER_PORT` | HTTP server port | `8080` |
 | `LOG_LEVEL` | Log verbosity (`debug`, `info`, `error`) | `info` |
-
+|`OTEL_EXPORTER_OTLP_ENDPOINT` | OpenTelemetry tracing | http://localhost:4318
 ---
 
 ## Testing
@@ -280,6 +240,8 @@ The test suite covers:
 
 ## Observability
 
+### Logging
+
 The `logger` module emits structured JSON logs at every significant step of the request lifecycle:
 
 ```json
@@ -290,3 +252,26 @@ The `logger` module emits structured JSON logs at every significant step of the 
 ```
 
 Log fields are consistent across modules, making them easy to aggregate in tools like Datadog, Loki, or any JSON-aware log pipeline.
+
+
+### Tracing
+The service is fully instrumented with OpenTelemetry. Every incoming HTTP request 
+generates a root span via `otelhttp`, with child spans propagated through the 
+service and repository layers via context.
+
+Span hierarchy for a payment creation:
+
+```
+POST /payments
+  └── PaymentHandler.Create
+        └── IdempotencyService.Execute
+              └── PaymentService.Create
+                    └── PaymentRepository.Create
+```
+Spans include attributes like `payment.id`, `idempotency.key`, `db.operation`, 
+and `db.table`. Errors are recorded with `span.RecordError` and marked with 
+`codes.Error`.
+
+Configure your OTLP endpoint via the environment variable:
+```OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318```
+Compatible with Jaeger, Grafana Tempo, Datadog, and any OTLP-compatible backend.

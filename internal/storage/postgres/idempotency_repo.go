@@ -25,6 +25,13 @@ func NewIdempotencyRepository(db DBTX, logger *slog.Logger) *IdempotencyReposito
 	return &IdempotencyRepository{db: db, log: logger}
 }
 
+func (r *IdempotencyRepository) conn(ctx context.Context) DBTX {
+	if tx, ok := TxFromContext(ctx); ok {
+		return tx
+	}
+	return r.db
+}
+
 func (r *IdempotencyRepository) GetByKey(
 	ctx context.Context,
 	key string,

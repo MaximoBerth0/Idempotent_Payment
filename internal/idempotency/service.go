@@ -3,18 +3,25 @@ package idempotency
 import (
 	"context"
 	"log/slog"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Service struct {
 	repo IdempotencyRepository
 	log  *slog.Logger
+	pool *pgxpool.Pool
 }
 
-func NewService(repo IdempotencyRepository, logger *slog.Logger) *Service {
-	return &Service{repo: repo, log: logger}
+func NewService(repo IdempotencyRepository, logger *slog.Logger, pool *pgxpool.Pool) *Service {
+	return &Service{repo: repo, log: logger, pool: pool}
 }
 
-// this is a higher-order function, Execute() manages idempotency logic and executes the provided handler function.
+/*
+this is a higher-order function, Execute() manages idempotency logic and executes the provided handler function.
+it is executed atomically
+*/
+
 func (s *Service) Execute(
 	ctx context.Context,
 	key string,

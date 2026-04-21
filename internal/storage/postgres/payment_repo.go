@@ -9,20 +9,29 @@ import (
 	"idempotent-payment/internal/payment"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 )
 
 type PaymentRepository struct {
-	db  DBTX
-	log *slog.Logger
+	db   DBTX
+	pool *pgxpool.Pool
+	log  *slog.Logger
 }
 
 var paymentTracer = otel.Tracer("idempotent-payment/internal/storage/postgres/payment_repo")
 
-func NewPaymentRepository(db DBTX, logger *slog.Logger) *PaymentRepository {
-	return &PaymentRepository{db: db, log: logger}
+func NewPaymentRepository(db DBTX, logger *slog.Logger, pool *pgxpool.Pool) *PaymentRepository {
+	return &PaymentRepository{db: db, log: logger, pool: pool}
+}
+
+func (r *PaymentRepository) conn(ctx context.Context) DBTX {
+	if tx, ok := TxFromContext(ctx); ok {
+		return tx
+	}
+	return r.db
 }
 
 func (r *PaymentRepository) Create(
@@ -143,5 +152,5 @@ func (r *PaymentRepository) Save(
 }
 
 func (r *PaymentRepository) Health(ctx context.Context) error {
-	return r.db.Ping(ctx)
+	return r.pool.Ping(ctx)
 }
