@@ -69,7 +69,9 @@ func main() {
 	// Service
 	paymentService := payment.NewService(paymentRepo, log, productRepo)
 	productService := product.NewService(productRepo, log)
-	idempotencyService := idempotency.NewService(idempotencyRepo, log, pool)
+	idempotencyService := idempotency.NewService(idempotencyRepo, log, func(ctx context.Context, fn func(context.Context) error) error {
+		return postgres.WithTransaction(ctx, pool, fn)
+	})
 
 	// Handler
 	paymentHandler := apphttp.NewPaymentHandler(paymentService, idempotencyService, log)

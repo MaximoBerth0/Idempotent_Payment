@@ -1,13 +1,16 @@
 package idempotency
 
-// ==== This test needs to be modified. ====
-
 import (
 	"context"
 	"io"
 	"log/slog"
 	"testing"
 )
+
+// noopTx runs fn directly without a real database transaction (like unit-test helper)
+func noopTx(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
+}
 
 type MockRepo struct {
 	record  *IdempotencyRecord
@@ -42,7 +45,7 @@ func TestExecute_NewRequest(t *testing.T) {
 		created: true,
 	}
 
-	service := NewService(mockRepo, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	service := NewService(mockRepo, slog.New(slog.NewTextHandler(io.Discard, nil)), noopTx)
 
 	handler := func(ctx context.Context) ([]byte, int, error) {
 		return []byte("payment ok"), 200, nil
@@ -71,8 +74,8 @@ func TestExecute_NewRequest(t *testing.T) {
 // tests the flow of a duplicate request with same key and hash:
 // same key
 // same hash
-// → do NOT execute handler again
-// → return stored response
+// - do NOT execute handler again
+// - return stored response
 
 func TestExecute_DuplicateRequestReturnsStoredResponse(t *testing.T) {
 
@@ -91,7 +94,7 @@ func TestExecute_DuplicateRequestReturnsStoredResponse(t *testing.T) {
 		created: false,
 	}
 
-	service := NewService(mockRepo, slog.New(slog.NewTextHandler(io.Discard, nil)))
+	service := NewService(mockRepo, slog.New(slog.NewTextHandler(io.Discard, nil)), noopTx)
 
 	handler := func(ctx context.Context) ([]byte, int, error) {
 		t.Fatal("handler should not run")

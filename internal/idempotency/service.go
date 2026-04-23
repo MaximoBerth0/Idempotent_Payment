@@ -3,25 +3,25 @@ package idempotency
 import (
 	"context"
 	"log/slog"
-
-	"github.com/jackc/pgx/v5/pgxpool"
 )
 
+type TxFunc func(ctx context.Context, fn func(ctx context.Context) error) error
+
 type Service struct {
-	repo IdempotencyRepository
-	log  *slog.Logger
-	pool *pgxpool.Pool
+	repo   IdempotencyRepository
+	log    *slog.Logger
+	withTx TxFunc
 }
 
-func NewService(repo IdempotencyRepository, logger *slog.Logger, pool *pgxpool.Pool) *Service {
-	return &Service{repo: repo, log: logger, pool: pool}
+func NewService(repo IdempotencyRepository, logger *slog.Logger, withTx TxFunc) *Service {
+	return &Service{repo: repo, log: logger, withTx: withTx}
 }
 
 /*
-this is a higher-order function, Execute() manages idempotency logic and executes the provided handler function.
-it is executed atomically
+Execute manages idempotency logic and executes the provided handler atomically.
+The handler and the idempotency record save share a single transaction so that
+the business operation and the record update either both commit or both roll back.
 */
-
 func (s *Service) Execute(
 	ctx context.Context,
 	key string,
@@ -31,6 +31,8 @@ func (s *Service) Execute(
 
 	record := NewIdempotencyRecord(key, requestHash)
 
+	// CreateIfNotExists is committed immediately (outside the tx) so that
+	// concurrent requests see the "in-progress" record right away.
 	existing, created, err := s.repo.CreateIfNotExists(ctx, record)
 	if err != nil {
 		s.log.ErrorContext(ctx, "failed to create idempotency record", "key", key, "error", err)
@@ -56,21 +58,34 @@ func (s *Service) Execute(
 		}
 	}
 
-	response, httpStatus, handlerErr := handler(ctx)
+	// run the handler and save the result inside a single transaction so that
+	// the business write and the idempotency record update are atomic.
+	var (
+		response   []byte
+		httpStatus int
+		handlerErr error
+	)
+
+	txErr := s.withTx(ctx, func(ctx context.Context) error {
+		response, httpStatus, handlerErr = handler(ctx)
+
+		if handlerErr != nil {
+			record.MarkFailed(response, httpStatus)
+		} else {
+			record.MarkCompleted(response, httpStatus)
+		}
+
+		return s.repo.Save(ctx, record)
+	})
+
+	if txErr != nil {
+		s.log.ErrorContext(ctx, "transaction failed", "key", key, "error", txErr)
+		return nil, 0, txErr
+	}
 
 	if handlerErr != nil {
 		s.log.ErrorContext(ctx, "handler execution failed", "key", key, "http_status", httpStatus, "error", handlerErr)
-		record.MarkFailed(response, httpStatus)
-		if saveErr := s.repo.Save(ctx, record); saveErr != nil {
-			s.log.ErrorContext(ctx, "failed to save failed idempotency record", "key", key, "error", saveErr)
-		}
 		return response, httpStatus, handlerErr
-	}
-
-	record.MarkCompleted(response, httpStatus)
-	if err := s.repo.Save(ctx, record); err != nil {
-		s.log.ErrorContext(ctx, "failed to save completed idempotency record", "key", key, "error", err)
-		return nil, 0, err
 	}
 
 	s.log.InfoContext(ctx, "idempotency record completed", "key", key, "http_status", httpStatus)
